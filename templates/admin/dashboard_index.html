@@ -1,0 +1,98 @@
+{% extends 'admin/master.html' %}
+
+{% block head %}
+    {{ super() }}
+    <style>
+        .dashboard-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .dashboard-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-left: 5px solid #ddd;
+            margin-bottom: 20px;
+            transition: transform 0.2s;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .card-label {
+            font-size: 14px;
+            color: #888;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .card-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+            margin-top: 5px;
+        }
+        .btn-home {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            display: inline-block;
+            margin-top: 15px;
+        }
+        .btn-home:hover {
+            background: rgba(255,255,255,0.3);
+            color: white;
+            text-decoration: none;
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+<div class="container-fluid">
+
+    <div class="dashboard-header">
+        <h1>👋 欢迎回来，管理员</h1>
+        <p>这里是招聘系统的中央控制台，您可以管理所有核心数据。</p>
+        <a href="/" class="btn-home">⬅️ 返回前台应用</a>
+    </div>
+
+    <div class="row">
+        <div class="col-md-3">
+            <div class="dashboard-card" style="border-color: #4e73df;">
+                <div class="card-label">总用户数</div>
+                <div class="card-value">{{ user_count }}</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="dashboard-card" style="border-color: #1cc88a;">
+                <div class="card-label">简历入库量</div>
+                <div class="card-value">{{ resume_count }}</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="dashboard-card" style="border-color: #36b9cc;">
+                <div class="card-label">剩余邀请码</div>
+                <div class="card-value">{{ invite_unused }}</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="dashboard-card" style="border-color: #f6c23e;">
+                <div class="card-label">生效公告</div>
+                <div class="card-value">{{ active_announcements }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-info" style="margin-top: 20px;">
+        <strong>提示：</strong> 请使用上方导航栏切换不同的数据管理模块。
+    </div>
+
+</div>
+{% endblock %}
