@@ -1,0 +1,15 @@
+flask==3.0.0
+flask-cors
+flask-sqlalchemy
+flask-jwt-extended
+flask-admin
+flask-babel
+werkzeug
+sentence-transformers
+torch
+jieba
+pdfplumber
+python-dotenv
+psycopg2-binary
+requests
+email-validator

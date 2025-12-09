@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 智能招聘助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .active-card { background-color: #eef2ff; border-left: 4px solid #4f46e5; }
+        .modal { transition: opacity 0.25s ease; }
+        body.modal-active { overflow-x: hidden; overflow-y: hidden !important; }
+        body { user-select: none; }
+        input, textarea, .selectable-text { user-select: text; }
+        .highlight-word { background-color: #fef08a; color: #854d0e; padding: 0 2px; border-radius: 2px; font-weight: bold; }
+
+        /* 消息提示框 (Toast) 样式 */
+        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+        .toast { pointer-events: auto; min-width: 250px; padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 14px; font-weight: 500; transform: translateX(100%); transition: transform 0.3s ease-out; display: flex; align-items: center; justify-content: space-between; }
+        .toast.show { transform: translateX(0); }
+        .toast-success { background-color: #f0fdf4; color: #15803d; border-left: 4px solid #22c55e; }
+        .toast-error { background-color: #fef2f2; color: #b91c1c; border-left: 4px solid #ef4444; }
+        .toast-info { background-color: #eff6ff; color: #1d4ed8; border-left: 4px solid #3b82f6; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- 全局消息提示容器 -->
+    <div id="toast-container"></div>
+
+    <!-- 登录/注册 遮罩层 -->
+    <div id="auth-overlay">
+        <div id="login-overlay-bg" class="fixed inset-0 bg-gray-100 z-[9999] flex justify-center items-center">
+             <div class="bg-white p-8 rounded-2xl shadow-2xl w-96 border border-gray-100 transform transition-all hover:scale-105 duration-300">
+                <div class="text-center mb-8">
+                    <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.2-2.85.5-4m1.5 13.5c-3.236-3.26-6-7.5-6-7.5"></path></svg>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-800">AI 招聘助手</h2>
+                    <p class="text-sm text-gray-400 mt-2">私有化简历匹配系统</p>
+                </div>
+
+                <!-- 登录表单 -->
+                <div id="login-box">
+                    <div class="space-y-4">
+                        <input id="login-user" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" placeholder="用户名">
+                        <input id="login-pass" type="password" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" placeholder="密码">
+                        <button onclick="login()" class="w-full bg-indigo-600 text-white p-3 rounded-lg font-bold hover:bg-indigo-700 shadow-md transition transform hover:-translate-y-0.5">立即登录</button>
+                    </div>
+                    <p class="text-center mt-6 text-sm text-gray-500">
+                        还没有账号？ <span class="text-indigo-600 font-bold cursor-pointer hover:underline" onclick="toggleAuthMode()">去注册</span>
+                    </p>
+                </div>
+
+                <!-- 注册表单 -->
+                <div id="register-box" class="hidden">
+                    <div class="space-y-4">
+                        <input id="reg-user" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none transition" placeholder="设置用户名">
+                        <input id="reg-pass" type="password" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none transition" placeholder="设置密码 (8位以上+字母数字)">
+                        <input id="reg-code" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none transition" placeholder="请输入邀请码 (必填)">
+                        <button onclick="register()" class="w-full bg-green-600 text-white p-3 rounded-lg font-bold hover:bg-green-700 shadow-md transition transform hover:-translate-y-0.5">创建账号</button>
+                    </div>
+                    <p class="text-center mt-6 text-sm text-gray-500">
+                        已有账号？ <span class="text-indigo-600 font-bold cursor-pointer hover:underline" onclick="toggleAuthMode()">返回登录</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主界面 -->
+
+    <!-- 公告栏 -->
+    <div id="announcement-bar" class="hidden border-b px-4 py-2 z-20 flex justify-between items-center relative transition-colors duration-300">
+        <div class="flex items-center gap-2 text-sm flex-1 font-medium">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"></path></svg>
+            <span id="announcement-title" class="font-bold"></span>
+            <span class="mx-1">-</span>
+            <span id="announcement-text"></span>
+        </div>
+        <button onclick="document.getElementById('announcement-bar').classList.add('hidden')" class="hover:opacity-70">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+    </div>
+
+    <!-- 顶部导航栏 -->
+    <div class="bg-white border-b border-gray-200 shadow-sm p-4 z-20">
+        <div class="max-w-7xl mx-auto flex justify-between items-start gap-4">
+            <!-- 左侧核心功能 -->
+            <div class="flex-1 flex gap-4 items-start">
+                <div class="flex-1">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                            岗位描述 (JD)
+                        </label>
+                        <!-- 模型选择器 -->
+                        <select id="model-select" class="text-xs border border-gray-300 rounded px-2 py-1 bg-white text-gray-700 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm">
+                            <option value="default">🌐 通用多语言 (MiniLM-L12-v2)</option>
+                            <option value="chinese_acc">🏆 中文高精 (BGE v1.5)</option>
+                            <option value="chinese_long">📜 中文长文本 (Jina v2)</option>
+                        </select>
+                    </div>
+                    <textarea id="jd-input" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none bg-gray-50 focus:bg-white transition-colors" rows="2">负责服务端开发，精通 Python，熟悉 Django 或 Flask 框架，了解 MySQL 数据库优化，有良好的编码习惯。</textarea>
+                </div>
+                <div class="flex flex-col gap-2 mt-6">
+                    <button onclick="fetchResumes()" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all text-sm whitespace-nowrap">
+                        AI 深度分析
+                    </button>
+                    <button onclick="toggleModal('resume-modal')" class="px-6 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg shadow-sm transition-all text-sm whitespace-nowrap">
+                        + 添加候选人
+                    </button>
+                </div>
+            </div>
+
+            <!-- 右侧用户信息 -->
+            <div class="ml-4 flex flex-col items-end justify-center h-full pt-6">
+                <div class="flex items-center gap-2 mb-1">
+                    <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span id="current-username" class="text-sm font-bold text-gray-700">未登录</span>
+                </div>
+                <div class="flex gap-3 text-xs">
+                    <!-- 管理员按钮 (默认隐藏) -->
+                    <button id="admin-btn" onclick="openAdminModal()" class="hidden text-indigo-600 hover:text-indigo-800 font-bold hover:underline">管理后台</button>
+                    <button onclick="logout()" class="text-gray-400 hover:text-red-500 hover:underline">退出登录</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex flex-1 overflow-hidden max-w-7xl mx-auto w-full">
+        <!-- 左侧简历列表 -->
+        <div class="w-1/3 bg-white border-r border-gray-200 flex flex-col">
+            <div class="p-3 bg-gray-50 border-b border-gray-200 text-xs text-gray-500 flex justify-between items-center">
+                <span class="font-medium">候选人列表</span>
+                <span id="result-count" class="bg-gray-200 px-2 py-0.5 rounded text-gray-600">--</span>
+            </div>
+            <div id="resume-list" class="flex-1 overflow-y-auto"></div>
+        </div>
+
+        <!-- 右侧详情页 -->
+        <div class="w-2/3 bg-gray-50 p-6 overflow-y-auto selectable-text">
+            <div id="resume-detail" class="bg-white shadow-lg rounded-xl min-h-[600px] hidden relative flex flex-col"></div>
+            <div id="empty-state" class="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
+                <div class="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mb-4">
+                    <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                </div>
+                <p id="empty-state-text" class="font-medium">暂无简历数据</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模态框: 添加简历 -->
+    <div id="resume-modal" class="modal opacity-0 pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center z-50">
+        <div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-50"></div>
+        <div class="modal-container bg-white w-11/12 md:max-w-2xl mx-auto rounded shadow-lg z-50 overflow-y-auto max-h-[90vh]">
+            <div class="modal-content py-4 text-left px-6">
+                <div class="flex justify-between items-center pb-3 border-b mb-4">
+                    <p class="text-2xl font-bold text-gray-700">添加新候选人</p>
+                    <div class="cursor-pointer hover:text-red-500" onclick="toggleModal('resume-modal')">✕</div>
+                </div>
+
+                <div class="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-100 flex items-center justify-between">
+                    <div>
+                        <h4 class="font-bold text-indigo-700 text-sm">上传 PDF 简历</h4>
+                        <p class="text-xs text-indigo-500 mt-1">自动解析姓名、经历与技能</p>
+                    </div>
+                    <label class="cursor-pointer px-4 py-2 bg-indigo-600 text-white rounded shadow hover:bg-indigo-700 transition text-sm font-bold flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        <span>选择文件</span>
+                        <input type="file" id="pdf-upload" class="hidden" accept=".pdf" onchange="uploadPDF(this)">
+                    </label>
+                </div>
+
+                <div class="space-y-4 text-sm">
+                    <div class="grid grid-cols-2 gap-4">
+                        <input id="add-name" class="border p-2 rounded outline-none focus:ring-2 focus:ring-indigo-200" placeholder="姓名 (必填)">
+                        <input id="add-role" class="border p-2 rounded outline-none focus:ring-2 focus:ring-indigo-200" placeholder="求职意向">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input id="add-email" class="border p-2 rounded outline-none focus:ring-2 focus:ring-indigo-200" placeholder="邮箱">
+                        <input id="add-phone" class="border p-2 rounded outline-none focus:ring-2 focus:ring-indigo-200" placeholder="电话">
+                    </div>
+                     <div class="grid grid-cols-2 gap-4">
+                        <input id="add-edu" class="border p-2 rounded outline-none focus:ring-2 focus:ring-indigo-200" placeholder="学历">
+                        <input id="add-loc" class="border p-2 rounded outline-none focus:ring-2 focus:ring-indigo-200" placeholder="坐标">
+                    </div>
+                    <input id="add-skills" class="w-full border p-2 rounded outline-none focus:ring-2 focus:ring-indigo-200" placeholder="技能 (逗号分隔)">
+                    <textarea id="add-summary" class="w-full border p-2 rounded h-20 resize-none outline-none focus:ring-2 focus:ring-indigo-200" placeholder="个人简介"></textarea>
+
+                    <div class="border-t pt-4">
+                        <label class="font-bold text-indigo-600 block mb-2">最近一段工作经历</label>
+                        <div class="grid grid-cols-2 gap-4 mb-2">
+                             <input id="add-exp-title" class="w-full border p-2 rounded" placeholder="职位">
+                             <input id="add-exp-company" class="w-full border p-2 rounded" placeholder="公司">
+                        </div>
+                        <textarea id="add-exp-desc" class="w-full border p-2 rounded h-20 resize-none" placeholder="工作内容描述"></textarea>
+                    </div>
+                </div>
+                <div class="flex justify-end pt-4 gap-2">
+                    <button onclick="toggleModal('resume-modal')" class="px-4 py-2 bg-gray-200 rounded-lg text-gray-700 hover:bg-gray-300">取消</button>
+                    <button onclick="submitNewResume()" class="px-4 py-2 bg-indigo-600 rounded-lg text-white hover:bg-indigo-700 font-bold">保存并添加</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模态框: 管理员后台 (Dashboard) -->
+    <div id="admin-modal" class="modal opacity-0 pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center z-50">
+        <div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-50"></div>
+        <div class="modal-container bg-white w-11/12 md:max-w-4xl mx-auto rounded-lg shadow-2xl z-50 overflow-hidden flex flex-col max-h-[90vh]">
+
+            <!-- 头部 -->
+            <div class="bg-indigo-900 text-white px-6 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <h2 class="text-xl font-bold">管理控制台</h2>
+                </div>
+                <button onclick="toggleModal('admin-modal')" class="text-indigo-200 hover:text-white hover:bg-indigo-800 p-1 rounded transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <!-- 主体内容区 -->
+            <div class="flex flex-1 overflow-hidden">
+                <!-- 侧边菜单 -->
+                <div class="w-48 bg-gray-50 border-r border-gray-200 flex flex-col">
+                    <button onclick="switchAdminTab('overview')" class="admin-tab-btn active text-left px-6 py-4 font-medium text-gray-600 hover:bg-white hover:text-indigo-600 border-l-4 border-transparent focus:outline-none" data-target="overview">系统概览</button>
+                    <button onclick="switchAdminTab('invites')" class="admin-tab-btn text-left px-6 py-4 font-medium text-gray-600 hover:bg-white hover:text-indigo-600 border-l-4 border-transparent focus:outline-none" data-target="invites">邀请码管理</button>
+                    <button onclick="switchAdminTab('announce')" class="admin-tab-btn text-left px-6 py-4 font-medium text-gray-600 hover:bg-white hover:text-indigo-600 border-l-4 border-transparent focus:outline-none" data-target="announce">发布公告</button>
+
+                    <div class="mt-auto p-4">
+                        <!-- 修复：强制可点击跳转 -->
+                        <a href="/admin/" onclick="window.location.href='/admin/'; return false;" style="pointer-events: auto; cursor: pointer;" class="block text-center w-full py-2 bg-indigo-100 text-indigo-700 rounded text-sm font-bold hover:bg-indigo-200 transition">
+                            进入完整后台 &rarr;
+                        </a>
+                    </div>
+                </div>
+
+                <!-- 对应面板内容 -->
+                <div class="flex-1 overflow-y-auto p-8 bg-white">
+
+                    <!-- 面板: 概览 -->
+                    <div id="tab-overview" class="admin-tab-content space-y-6">
+                        <h3 class="text-xl font-bold text-gray-800 border-b pb-2 mb-4">数据统计</h3>
+                        <div class="grid grid-cols-3 gap-6">
+                            <div class="bg-blue-50 p-6 rounded-xl border border-blue-100">
+                                <div class="text-blue-500 text-sm font-bold uppercase">总用户数</div>
+                                <div class="text-4xl font-bold text-gray-800 mt-2" id="stat-users">-</div>
+                            </div>
+                            <div class="bg-green-50 p-6 rounded-xl border border-green-100">
+                                <div class="text-green-500 text-sm font-bold uppercase">简历入库</div>
+                                <div class="text-4xl font-bold text-gray-800 mt-2" id="stat-resumes">-</div>
+                            </div>
+                            <div class="bg-purple-50 p-6 rounded-xl border border-purple-100">
+                                <div class="text-purple-500 text-sm font-bold uppercase">可用邀请码</div>
+                                <div class="text-4xl font-bold text-gray-800 mt-2" id="stat-codes">-</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 面板: 邀请码 -->
+                    <div id="tab-invites" class="admin-tab-content hidden space-y-6">
+                        <div class="flex justify-between items-center border-b pb-2 mb-4">
+                            <h3 class="text-xl font-bold text-gray-800">邀请码生成器</h3>
+                            <button onclick="generateCodes()" class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 text-sm font-bold">生成 5 个新码</button>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+                            <table class="w-full text-sm text-left">
+                                <thead class="bg-gray-100 text-gray-500 font-bold">
+                                    <tr>
+                                        <th class="px-4 py-3">邀请码</th>
+                                        <th class="px-4 py-3">创建时间</th>
+                                        <th class="px-4 py-3 text-right">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="invite-code-list" class="divide-y divide-gray-200">
+                                    <!-- 动态插入 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 面板: 公告 -->
+                    <div id="tab-announce" class="admin-tab-content hidden space-y-6">
+                        <h3 class="text-xl font-bold text-gray-800 border-b pb-2 mb-4">发布全站公告</h3>
+                        <div class="space-y-4 max-w-lg">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-600 mb-1">公告标题</label>
+                                <input id="ann-title" class="w-full border p-2 rounded focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="例如：系统维护通知">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-600 mb-1">公告类型</label>
+                                <select id="ann-type" class="w-full border p-2 rounded focus:ring-2 focus:ring-indigo-500 outline-none">
+                                    <option value="info">蓝色通知 (Info)</option>
+                                    <option value="success">绿色更新 (Success)</option>
+                                    <option value="warning">橙色警告 (Warning)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-600 mb-1">公告内容</label>
+                                <textarea id="ann-content" class="w-full border p-2 rounded h-24 focus:ring-2 focus:ring-indigo-500 outline-none resize-none" placeholder="请输入具体内容..."></textarea>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="ann-overwrite" checked>
+                                <label for="ann-overwrite" class="text-sm text-gray-600">覆盖当前显示的旧公告</label>
+                            </div>
+                            <button onclick="publishAnnouncement()" class="w-full bg-indigo-600 text-white py-2 rounded font-bold hover:bg-indigo-700">立即发布</button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // === 0. 图标与工具函数 ===
+        const icons = {
+            mail: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`,
+            phone: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
+            edu: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>`
+        };
+
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<span>${msg}</span><button onclick="this.parentElement.remove()" class="ml-2 opacity-50 hover:opacity-100">✕</button>`;
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
+        }
+
+        let token = localStorage.getItem('token');
+        let currentUser = localStorage.getItem('username');
+        let currentRole = localStorage.getItem('role') || 'user';
+
+        window.addEventListener('DOMContentLoaded', () => {
+            if (token && currentUser) {
+                document.getElementById('auth-overlay').style.display = 'none';
+                updateUserUI();
+                fetchResumes();
+                fetchAnnouncement();
+            } else {
+                document.getElementById('login-overlay-bg').style.display = 'flex';
+            }
+        });
+
+        function updateUserUI() {
+            document.getElementById('current-username').innerText = currentUser;
+            document.getElementById('empty-state-text').innerText = "暂无简历数据，请添加";
+            if (['admin', 'super_admin'].includes(currentRole)) {
+                document.getElementById('admin-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('admin-btn').classList.add('hidden');
+            }
+        }
+
+        async function fetchAnnouncement() {
+            try {
+                const res = await fetch('/api/announcement');
+                const data = await res.json();
+                if (data.title && data.content) {
+                    const bar = document.getElementById('announcement-bar');
+                    document.getElementById('announcement-title').innerText = data.title;
+                    document.getElementById('announcement-text').innerText = data.content;
+                    bar.className = 'border-b px-4 py-2 z-20 flex justify-between items-center relative transition-colors duration-300';
+                    const colors = { warning: 'bg-orange-50 text-orange-700', success: 'bg-green-50 text-green-700', info: 'bg-blue-50 text-blue-700' };
+                    bar.className += ' ' + (colors[data.type] || colors.info);
+                    bar.classList.remove('hidden');
+                }
+            } catch(e) {}
+        }
+
+        function toggleAuthMode() {
+            document.getElementById('login-box').classList.toggle('hidden');
+            document.getElementById('register-box').classList.toggle('hidden');
+        }
+
+        async function login() {
+            const u = document.getElementById('login-user').value.trim();
+            const p = document.getElementById('login-pass').value.trim();
+            if(!u || !p) return showToast("账号密码不能为空", 'error');
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: u, password: p})
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    token = data.token;
+                    currentUser = data.username;
+                    currentRole = data.role;
+                    localStorage.setItem('token', token);
+                    localStorage.setItem('username', currentUser);
+                    localStorage.setItem('role', currentRole);
+                    document.getElementById('auth-overlay').style.display = 'none';
+                    updateUserUI();
+                    fetchResumes();
+                    fetchAnnouncement();
+                    showToast("欢迎回来！", 'success');
+                } else { showToast(data.error || "登录失败", 'error'); }
+            } catch(e) { showToast("网络错误", 'error'); }
+        }
+
+        async function register() {
+            const u = document.getElementById('reg-user').value.trim();
+            const p = document.getElementById('reg-pass').value.trim();
+            const c = document.getElementById('reg-code').value.trim();
+            if(!u || !p || !c) return showToast("请填写所有字段", 'error');
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: u, password: p, invitation_code: c})
+                });
+                if(res.ok) {
+                    showToast("注册成功！请登录", 'success');
+                    toggleAuthMode();
+                } else { showToast((await res.json()).error || "注册失败", 'error'); }
+            } catch(e) { showToast("网络错误", 'error'); }
+        }
+
+        function logout() {
+            if(confirm("确定要退出登录吗？")) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+
+        function getAuthHeaders() {
+            return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+        }
+
+        async function fetchResumes() {
+            if(!token) return;
+            const jdText = document.getElementById('jd-input').value;
+            // 获取选中的模型
+            const modelType = document.getElementById('model-select').value;
+
+            // 显示加载状态（可选）
+            document.getElementById('result-count').innerText = "分析中...";
+
+            try {
+                const res = await fetch('/api/match', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ jd_text: jdText, model_type: modelType })
+                });
+                if (res.status === 401) { logout(); return; }
+                const data = await res.json();
+                renderList(data);
+                document.getElementById('result-count').innerText = `共 ${data.length} 位`;
+                if (data.length > 0) {
+                    renderDetail(data[0]);
+                    highlightItem(data[0].id);
+                } else {
+                    document.getElementById('resume-detail').style.display = 'none';
+                    document.getElementById('empty-state').style.display = 'flex';
+                }
+            } catch(e) { console.error(e); showToast("分析失败", "error"); }
+        }
+
+        async function submitNewResume() {
+            const data = {
+                name: document.getElementById('add-name').value,
+                role: document.getElementById('add-role').value,
+                email: document.getElementById('add-email').value,
+                phone: document.getElementById('add-phone').value,
+                edu: document.getElementById('add-edu').value,
+                location: document.getElementById('add-loc').value,
+                skills: document.getElementById('add-skills').value,
+                summary: document.getElementById('add-summary').value,
+                experience: [{
+                    title: document.getElementById('add-exp-title').value,
+                    company: document.getElementById('add-exp-company').value,
+                    desc: document.getElementById('add-exp-desc').value
+                }]
+            };
+            try {
+                const res = await fetch('/api/add_resume', { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(data) });
+                if(res.ok) {
+                    toggleModal('resume-modal');
+                    fetchResumes();
+                    showToast("添加成功", 'success');
+                } else { showToast("添加失败", 'error'); }
+            } catch(e) { showToast("网络错误", 'error'); }
+        }
+
+        async function uploadPDF(input) {
+            if (!input.files[0]) return;
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+            const label = input.parentElement.querySelector('span');
+            const originalTxt = label.innerText;
+            label.innerText = "解析中...";
+            try {
+                const res = await fetch('/api/parse_resume', { method: 'POST', body: formData });
+                const json = await res.json();
+                if(json.message === 'success') {
+                    const d = json.data;
+                    ['name','email','phone','role','edu','loc','skills','summary'].forEach(k => {
+                        if(d[k]) document.getElementById(`add-${k === 'loc' ? 'location' : k}`)?.setAttribute('value', d[k]);
+                        const el = document.getElementById(`add-${k === 'loc' ? 'loc' : k}`);
+                        if(el) el.value = d[k];
+                    });
+                    if(d.exp_title) document.getElementById('add-exp-title').value = d.exp_title;
+                    if(d.exp_company) document.getElementById('add-exp-company').value = d.exp_company;
+                    if(d.exp_desc) document.getElementById('add-exp-desc').value = d.exp_desc;
+                    showToast("解析成功", 'success');
+                }
+            } catch(e) { showToast("解析失败", 'error'); }
+            finally { label.innerText = originalTxt; input.value = ''; }
+        }
+
+        async function deleteResume(e, id) {
+            e.stopPropagation();
+            if(!confirm("确定删除?")) return;
+            const res = await fetch(`/api/delete_resume/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+            if(res.ok) { fetchResumes(); showToast("已删除", 'success'); } else { showToast("无法删除", 'error'); }
+        }
+
+        function openAdminModal() { toggleModal('admin-modal'); loadAdminStats(); }
+
+        function switchAdminTab(target) {
+            document.querySelectorAll('.admin-tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.admin-tab-btn').forEach(el => {
+                el.classList.remove('bg-white', 'text-indigo-600', 'border-indigo-600');
+                el.classList.add('border-transparent');
+            });
+            document.getElementById(`tab-${target}`).classList.remove('hidden');
+            const btn = document.querySelector(`button[data-target="${target}"]`);
+            btn.classList.add('bg-white', 'text-indigo-600', 'border-indigo-600');
+            btn.classList.remove('border-transparent');
+            if(target === 'invites') loadInviteCodes();
+        }
+
+        async function loadAdminStats() {
+            try {
+                const res = await fetch('/api/admin/stats', { headers: getAuthHeaders() });
+                if(!res.ok) return;
+                const data = await res.json();
+                document.getElementById('stat-users').innerText = data.user_count;
+                document.getElementById('stat-resumes').innerText = data.resume_count;
+                document.getElementById('stat-codes').innerText = data.invite_unused;
+            } catch(e) { console.error(e); }
+        }
+
+        async function loadInviteCodes() {
+            try {
+                const res = await fetch('/api/admin/invite_codes', { headers: getAuthHeaders() });
+                const codes = await res.json();
+                const tbody = document.getElementById('invite-code-list');
+                tbody.innerHTML = codes.map(c => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 font-mono text-indigo-600 font-bold select-all">${c.code}</td>
+                        <td class="px-4 py-3 text-gray-500">${new Date(c.created_at).toLocaleDateString()}</td>
+                        <td class="px-4 py-3 text-right">
+                            <button onclick="navigator.clipboard.writeText('${c.code}');showToast('已复制','success')" class="text-xs text-blue-500 hover:underline">复制</button>
+                        </td>
+                    </tr>`).join('');
+            } catch(e) {}
+        }
+
+        async function generateCodes() {
+            try {
+                const res = await fetch('/api/admin/invite_codes', {
+                    method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ count: 5 })
+                });
+                const data = await res.json();
+                loadInviteCodes();
+                showToast(`成功生成 ${data.codes.length} 个邀请码`, 'success');
+            } catch(e) { showToast("生成失败", 'error'); }
+        }
+
+        async function publishAnnouncement() {
+            const title = document.getElementById('ann-title').value;
+            const content = document.getElementById('ann-content').value;
+            const type = document.getElementById('ann-type').value;
+            const overwrite = document.getElementById('ann-overwrite').checked;
+            if(!title || !content) return showToast("请填写标题和内容", 'error');
+            try {
+                const res = await fetch('/api/admin/announcement', {
+                    method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ title, content, type, overwrite })
+                });
+                if(res.ok) { showToast("发布成功", 'success'); fetchAnnouncement(); }
+            } catch(e) { showToast("发布失败", 'error'); }
+        }
+
+        function toggleModal(id) {
+            const m = document.getElementById(id);
+            m.classList.toggle('opacity-0');
+            m.classList.toggle('pointer-events-none');
+        }
+
+        function highlightText(text, keywords) {
+            if (!text) return '';
+            if (!keywords || keywords.length === 0) return text;
+            const sorted = keywords.slice().sort((a, b) => b.length - a.length);
+            const pattern = new RegExp(`(${sorted.join('|')})`, 'gi');
+            return text.replace(pattern, '<span class="highlight-word">$1</span>');
+        }
+
+        function renderList(resumes) {
+            const list = document.getElementById('resume-list');
+            list.innerHTML = '';
+            resumes.forEach(r => {
+                let colorClass = r.matchScore >= 80 ? 'text-green-600 bg-green-50 ring-green-500' :
+                                 r.matchScore >= 60 ? 'text-yellow-600 bg-yellow-50 ring-yellow-500' : 'text-red-500 bg-red-50 ring-red-500';
+                const div = document.createElement('div');
+                div.className = 'resume-item p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors';
+                div.dataset.id = r.id;
+                div.onclick = () => { renderDetail(r); highlightItem(r.id); };
+                div.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div class="flex-1 min-w-0 pr-2">
+                            <div class="font-bold text-gray-800 truncate mb-1">${r.name}</div>
+                            <div class="text-xs text-gray-500 truncate" title="${r.role}">${r.role || '暂无职位'}</div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs px-2 py-0.5 rounded-full ${colorClass} ring-1 ring-inset font-bold whitespace-nowrap">${r.matchScore}分</span>
+                            <button onclick="deleteResume(event, ${r.id})" class="text-gray-400 hover:text-red-500 hover:bg-red-50 rounded p-1.5 transition-colors flex-shrink-0">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    </div>`;
+                list.appendChild(div);
+            });
+        }
+
+        function highlightItem(id) {
+            document.querySelectorAll('.resume-item').forEach(el => el.classList.remove('active-card'));
+            const activeEl = document.querySelector(`.resume-item[data-id="${id}"]`);
+            if(activeEl) activeEl.classList.add('active-card');
+        }
+
+        function renderDetail(r) {
+            document.getElementById('empty-state').style.display = 'none';
+            const detail = document.getElementById('resume-detail');
+            detail.style.display = 'flex';
+            const skillsHtml = r.skills.map(s => `<span class="px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-sm font-medium">${highlightText(s, r.keywords)}</span>`).join('');
+            const summaryHtml = highlightText(r.summary || '暂无简介', r.keywords);
+            detail.innerHTML = `
+                <div class="bg-gradient-to-r from-gray-50 to-white p-6 border-b border-gray-100">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <h2 class="text-3xl font-bold text-gray-900">${r.name}</h2>
+                            <p class="text-lg text-indigo-600 font-medium mt-1">${r.role}</p>
+                            <div class="flex flex-wrap gap-4 mt-4 text-sm text-gray-600">
+                                <span class="flex items-center gap-1.5 bg-white px-2 py-1 rounded border shadow-sm">${icons.mail} ${r.email || '未填写'}</span>
+                                <span class="flex items-center gap-1.5 bg-white px-2 py-1 rounded border shadow-sm">${icons.phone} ${r.phone || '未填写'}</span>
+                                <span class="flex items-center gap-1.5 bg-white px-2 py-1 rounded border shadow-sm">${icons.edu} ${r.edu || '未知'}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="w-40 h-40 relative"><canvas id="radarChart"></canvas></div>
+                            <div class="text-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                                <div class="text-5xl font-bold text-indigo-600 tracking-tight">${r.matchScore}</div>
+                                <div class="text-xs text-gray-400 font-bold uppercase tracking-wider mt-1">综合匹配</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-8 space-y-8 overflow-y-auto flex-1">
+                    <section><h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2"><span class="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span> 候选人画像</h4><p class="bg-blue-50 text-blue-900 p-5 rounded-lg leading-relaxed text-sm border-l-4 border-blue-200">${summaryHtml}</p></section>
+                    <section><h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2"><span class="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span> 核心技能栈</h4><div class="flex flex-wrap gap-2">${skillsHtml}</div></section>
+                    <section><h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2"><span class="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span> 工作 / 项目经历</h4><div class="space-y-4">${r.experience && r.experience.length > 0 ? r.experience.map(exp => `
+                        <div class="pl-5 border-l-2 border-indigo-100 relative group hover:border-indigo-400 transition-colors">
+                            <div class="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-white border-2 border-indigo-200 group-hover:border-indigo-500 transition-colors"></div>
+                            <div class="flex justify-between items-baseline">
+                                <h5 class="font-bold text-gray-800 text-base">${highlightText(exp.title, r.keywords)}</h5>
+                                <span class="text-xs text-gray-500 font-medium bg-gray-100 px-2 py-0.5 rounded">${exp.company}</span>
+                            </div>
+                            <p class="text-sm text-gray-600 mt-2 leading-relaxed">${highlightText(exp.desc, r.keywords)}</p>
+                        </div>`).join('') : '<p class="text-gray-400 text-sm">暂无经历</p>'}</div></section>
+                </div>`;
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['技能', '经历', '画像'],
+                    datasets: [{
+                        label: '得分',
+                        data: [r.radar.skills, r.radar.experience, r.radar.profile],
+                        backgroundColor: 'rgba(79, 70, 229, 0.2)', borderColor: '#4f46e5', borderWidth: 2, pointBackgroundColor: '#fff'
+                    }]
+                },
+                options: { scales: { r: { beginAtZero: true, max: 100, ticks: { display: false } } }, plugins: { legend: { display: false } } }
+            });
+        }
+    </script>
+</body>
+</html>
